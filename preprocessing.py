@@ -13,9 +13,11 @@ textOnlyKey = "Text"
 size = 1 #float
 jsonl = False
 remove_deleted = True
+remove_ref = True
+remove_links = True
 
 def remove_ref(input_string):
-    pattern = r">>\d{9}"
+    pattern = r">>\d+"
     return re.sub(pattern, "", input_string)
 def remove_links(input_string):
     pattern = r'http[s]?://\S+|www\.\S+'
@@ -35,8 +37,10 @@ def main():
     dataset = dataset[dataset['isop'] == False]
     if remove_deleted:
         dataset = dataset[dataset['type'] != 'deleted']
-    dataset['content'] = dataset['content'].apply(remove_ref)
-    dataset['content'] = dataset['content'].apply(remove_links)
+    if remove_ref:
+        dataset['content'] = dataset['content'].apply(remove_ref)
+    if remove_links:
+        dataset['content'] = dataset['content'].apply(remove_links)
     dataset = dataset[dataset['content'] != '']
     dataset = dataset.drop(columns=dataset.columns.difference(['content']))
     dataset.rename(columns={'content': textOnlyKey}, inplace=True)
