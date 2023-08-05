@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import json
 
-old_json_filename = "vrg"
+old_json_filename = "test"
 new_json_filename = "vrg_clean"
 textOnlyKey = "Text"
 size = 1 #float
@@ -23,6 +23,9 @@ def remove_links(input_string):
     pattern = r'http[s]?://\S+|www\.\S+'
     return re.sub(pattern, '', input_string)
 
+def remove_leading_trailing_newlines(input_string):
+    return input_string.lstrip('\n').rstrip('\n')
+
 def dump_json(data, file_path):
     with open(file_path, 'w') as json_file:
         json.dump(data, json_file, indent=4)
@@ -32,6 +35,7 @@ def dump_jsonl(data, file_path):
         for item in data:
             json.dump(item, jsonl_file)
             jsonl_file.write('\n')
+
 def main():
     dataset = pd.read_json(f"{old_json_filename}.json")
     dataset = dataset[dataset['isop'] == False]
@@ -41,6 +45,7 @@ def main():
         dataset['content'] = dataset['content'].apply(remove_ref)
     if remove_links:
         dataset['content'] = dataset['content'].apply(remove_links)
+    dataset['content'] = dataset['content'].apply(remove_leading_trailing_newlines)
     dataset = dataset[dataset['content'] != '']
     dataset = dataset.drop(columns=dataset.columns.difference(['content']))
     dataset.rename(columns={'content': textOnlyKey}, inplace=True)
