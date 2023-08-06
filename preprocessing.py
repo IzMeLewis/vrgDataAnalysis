@@ -6,11 +6,13 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import json
+from sklearn.model_selection import train_test_split
 
 old_json_filename = "test"
 new_json_filename = "vrg_clean"
 textOnlyKey = "Text"
-size = 1 #float
+dataset_size = 1 #float
+test_size = 0.2 #float
 jsonl = False
 remove_deleted = True
 remove_ref = True
@@ -36,7 +38,15 @@ def dump_jsonl(data, file_path):
             json.dump(item, jsonl_file)
             jsonl_file.write('\n')
 
+def dump_dataset(data,name):
+    dict_dataset = data.to_dict(orient='records')
+    if jsonl:
+        dump_jsonl(dict_dataset, f"{name}.jsonl")
+    else:
+        dump_json(dict_dataset, f"{name}.json")
+
 def main():
+    global jsonl
     dataset = pd.read_json(f"{old_json_filename}.json")
     dataset = dataset[dataset['isop'] == False]
     if remove_deleted:
@@ -49,11 +59,13 @@ def main():
     dataset = dataset[dataset['content'] != '']
     dataset = dataset.drop(columns=dataset.columns.difference(['content']))
     dataset.rename(columns={'content': textOnlyKey}, inplace=True)
-    dataset = dataset.sample(frac=size).reset_index(drop=True)
-    dict_dataset = dataset.to_dict(orient='records')
-    if jsonl:
-        dump_jsonl(dict_dataset, f"{new_json_filename}.jsonl")
-    else:
-        dump_json(dict_dataset, f"{new_json_filename}.json")
+
+    #reduces size of dataset
+    dataset = dataset.sample(frac=dataset_size).reset_index(drop=True)
+
+    dataset_train, dataset_test = train_test_split(dataset, test_size=test_size, random_state=0)
+
+    dump_dataset(dataset_train,f"{new_json_filename}_train")
+    dump_dataset(dataset_test,f"{new_json_filename}_test")
 
 main()
