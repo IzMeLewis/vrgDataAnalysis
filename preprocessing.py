@@ -13,6 +13,7 @@ new_json_filename = "vrg_clean"
 textOnlyKey = "Text"
 dataset_size = 1 #float
 test_size = 0.2 #float
+min_word_count = 5
 jsonl = False
 remove_deleted = True
 remove_ref = True
@@ -21,12 +22,20 @@ remove_links = True
 def remove_ref(input_string):
     pattern = r">>\d+"
     return re.sub(pattern, "", input_string)
+
 def remove_links(input_string):
     pattern = r'http[s]?://\S+|www\.\S+'
     return re.sub(pattern, '', input_string)
 
 def remove_leading_trailing_newlines(input_string):
     return input_string.lstrip('\n').rstrip('\n')
+
+def replace_newlines_with_space(input_string):
+    return input_string.replace('\n', ' ')
+
+def filter_word_count(dataset, text_column_name, min_length):
+    dataset_filtered = dataset[dataset[text_column_name].apply(lambda x: len(x.split()) >= min_word_count)]
+    return dataset_filtered
 
 def dump_json(data, file_path):
     with open(file_path, 'w') as json_file:
@@ -56,7 +65,17 @@ def main():
     if remove_links:
         dataset['content'] = dataset['content'].apply(remove_links)
     dataset['content'] = dataset['content'].apply(remove_leading_trailing_newlines)
-    dataset = dataset[dataset['content'] != '']
+
+    unwanted_text = ['',' ','\n']
+    for symbol in unwanted_text:    
+        dataset = dataset[dataset['content'] != symbol]
+    
+    dataset['cleantext'] = dataset['content'].apply(replace_newlines_with_space)
+
+    dataset = filter_word_count(dataset,'cleantext', min_word_count)
+
+    print(dataset.head(10))
+
     dataset = dataset.drop(columns=dataset.columns.difference(['content']))
     dataset.rename(columns={'content': textOnlyKey}, inplace=True)
 
