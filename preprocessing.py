@@ -83,8 +83,10 @@ def main():
     dataset = dataset.sample(frac=dataset_size).reset_index(drop=True)
     if test_size != 0:
         dataset_train, dataset_test = train_test_split(dataset, test_size=test_size, random_state=0)
+        dump_dataset(dataset_train,f"{new_json_filename}_train")
+        dump_dataset(dataset_test,f"{new_json_filename}_test")
+    else:
+        dump_dataset(dataset,new_json_filename)
 
-    dump_dataset(dataset_train,f"{new_json_filename}_train")
-    dump_dataset(dataset_test,f"{new_json_filename}_test")
 
 main()
