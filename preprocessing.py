@@ -14,14 +14,38 @@ textOnlyKey = "Text"
 dataset_size = 1 #float
 test_size = 0.2 #float
 min_word_count = 5
+min_replies = 5
+max_ref = 5
 jsonl = False
 remove_deleted = True
 remove_ref = True
 remove_links = True
 
 def remove_ref(input_string):
-    pattern = r">>\d+"
+    pattern = r">>>/[\w/]*\d+|>>\d+"
     return re.sub(pattern, "", input_string)
+
+def extract_ref(input_string):
+    pattern = r">>\d+"
+    matches = re.findall(pattern, input_string)
+    if matches:
+        return matches
+    return []
+
+def get_reply_text(row, df):
+    reply_ids = row['replies']
+
+    # Handle None and non-list cases
+    if not isinstance(reply_ids, list):
+        return []
+    
+    reply_texts = []
+    for reply_id in reply_ids:
+        reply_id = reply_id.replace('>>', '')
+        reply_text = df.loc[df['id'] == int(reply_id), 'cleantext'].tolist()
+        if reply_text:
+            reply_texts.extend(reply_text)
+    return reply_texts
 
 def remove_links(input_string):
     pattern = r'http[s]?://\S+|www\.\S+'
@@ -34,7 +58,15 @@ def replace_newlines_with_space(input_string):
     return input_string.replace('\n', ' ')
 
 def filter_word_count(dataset, text_column_name, min_length):
-    dataset_filtered = dataset[dataset[text_column_name].apply(lambda x: len(x.split()) >= min_word_count)]
+    dataset_filtered = dataset[dataset[text_column_name].apply(lambda x: len(x.split()) >= min_length)]
+    return dataset_filtered
+
+def filter_reply_count(dataset, min_replies):
+    dataset_filtered = dataset[dataset['replies'].apply(lambda x: x is not None and (len(x) >= min_replies or x == []))]
+    return dataset_filtered
+
+def filter_ref_count(dataset, max_ref):
+    dataset_filtered = dataset[dataset['references'].apply(lambda x: x is not None and (len(x) <= max_ref or x == []))]
     return dataset_filtered
 
 def dump_json(data, file_path):
@@ -47,12 +79,18 @@ def dump_jsonl(data, file_path):
             json.dump(item, jsonl_file)
             jsonl_file.write('\n')
 
-def dump_dataset(data,name):
-    dict_dataset = data.to_dict(orient='records')
+def dump_dataset(df,name):
+    output_list = []
+    for index, row in df.iterrows():
+        output_dict = {textOnlyKey: row['cleantext']}
+        for i, reply_text in enumerate(row['reply_texts']):
+            output_dict[f'reply{i+1}'] = reply_text
+        output_list.append(output_dict)
+    # dict_dataset = data.to_dict(orient='records')
     if jsonl:
-        dump_jsonl(dict_dataset, f"{name}.jsonl")
+        dump_jsonl(output_list, f"{name}.jsonl")
     else:
-        dump_json(dict_dataset, f"{name}.json")
+        dump_json(output_list, f"{name}.json")
 
 def main():
     global jsonl
@@ -60,6 +98,8 @@ def main():
     dataset = dataset[dataset['isop'] == False]
     if remove_deleted:
         dataset = dataset[dataset['type'] != 'deleted']
+
+    dataset['references'] = dataset['content'].apply(extract_ref)
     if remove_ref:
         dataset['content'] = dataset['content'].apply(remove_ref)
     if remove_links:
@@ -72,12 +112,15 @@ def main():
     
     dataset['cleantext'] = dataset['content'].apply(replace_newlines_with_space)
 
+    dataset['reply_texts'] = dataset.apply(get_reply_text, args=(dataset,), axis=1)
+
     dataset = filter_word_count(dataset,'cleantext', min_word_count)
 
-    print(dataset.head(10))
+    dataset = filter_reply_count(dataset, min_replies)
 
-    dataset = dataset.drop(columns=dataset.columns.difference(['content']))
-    dataset.rename(columns={'content': textOnlyKey}, inplace=True)
+    dataset = filter_ref_count(dataset,max_ref)
+
+    print(dataset.head())
 
     #reduces size of dataset
     dataset = dataset.sample(frac=dataset_size).reset_index(drop=True)
